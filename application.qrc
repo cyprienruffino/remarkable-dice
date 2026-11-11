@@ -1,5 +1,6 @@
 <RCC>
     <qresource>
         <file>ui/main.qml</file>
+        <file>ui/NativeInk.qml</file>
     </qresource>
 </RCC>

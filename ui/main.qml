@@ -1,7 +1,5 @@
 import QtQuick
 import net.asivery.AppLoad 1.0
-// xochitl's e-ink refresh modes (a stand-in in appload-run)
-import xofm.libs.epaper as Epaper
 
 Rectangle {
     id: root
@@ -11,6 +9,7 @@ Rectangle {
     // Must match backend/main.cpp
     readonly property int msgSave: 1
     readonly property int msgState: 100
+    readonly property int msgStroke: 101   // a pen stroke: {"eraser", "points": [x, y, ...]} in screen pixels
 
     property string tab: "life"
 
@@ -145,6 +144,13 @@ Rectangle {
         id: backend
         applicationID: "dice"
         onMessageReceived: (type, contents) => {
+            if (type === root.msgStroke) {
+                if (root.notesOpen) {
+                    const stroke = JSON.parse(contents)
+                    notesInk.addScreenStroke(stroke.points, stroke.eraser)
+                }
+                return
+            }
             if (type !== root.msgState) {
                 return
             }
@@ -210,8 +216,8 @@ Rectangle {
         text: "Notes"
         fontSize: 34
         onClicked: {
+            notesInk.strokes = root.notes
             root.notesOpen = true
-            notesCanvas.redrawAll()
         }
     }
 
@@ -536,9 +542,7 @@ Rectangle {
                     return
                 }
                 confirming = false
-                root.notes = []
-                root.save()
-                notesCanvas.redrawAll()
+                notesInk.clear()
             }
             Timer {
                 id: clearNotesTimer
@@ -559,97 +563,17 @@ Rectangle {
             border.width: 3
             radius: 12
 
-            Canvas {
-                id: notesCanvas
+            // Native ink while the page is open: hidden with it, it gives the
+            // pen back to the rest of the app
+            NativeInk {
+                id: notesInk
                 anchors.fill: parent
                 anchors.margins: 4
-
-                property var current: null       // the stroke being drawn
-                property var pendingSegments: []
-                property bool pendingRedraw: false
-
-                function redrawAll() {
-                    pendingRedraw = true
-                    pendingSegments = []
-                    requestPaint()
+                lineWidth: 4
+                onStrokesEdited: {
+                    root.notes = strokes
+                    root.save()
                 }
-
-                onPaint: {
-                    const ctx = getContext("2d")
-                    ctx.strokeStyle = "black"
-                    ctx.lineWidth = 4
-                    ctx.lineCap = "round"
-                    ctx.lineJoin = "round"
-                    if (pendingRedraw) {
-                        ctx.clearRect(0, 0, width, height)
-                        for (const stroke of root.notes) {
-                            ctx.beginPath()
-                            ctx.moveTo(stroke[0], stroke[1])
-                            for (let i = 2; i < stroke.length; i += 2) {
-                                ctx.lineTo(stroke[i], stroke[i + 1])
-                            }
-                            if (stroke.length === 2) {
-                                ctx.lineTo(stroke[0] + 0.5, stroke[1] + 0.5)
-                            }
-                            ctx.stroke()
-                        }
-                        pendingRedraw = false
-                    }
-                    for (const segment of pendingSegments) {
-                        ctx.beginPath()
-                        ctx.moveTo(segment[0], segment[1])
-                        ctx.lineTo(segment[2], segment[3])
-                        ctx.stroke()
-                    }
-                    pendingSegments = []
-                }
-
-                // Only the pen writes: it arrives as plain mouse events, while
-                // touches are synthesized ones, so a resting palm leaves no marks
-                MouseArea {
-                    anchors.fill: parent
-                    preventStealing: true
-                    onPressed: mouse => {
-                        if (mouse.source !== Qt.MouseEventNotSynthesized) {
-                            mouse.accepted = false
-                            return
-                        }
-                        notesCanvas.current = [Math.round(mouse.x), Math.round(mouse.y)]
-                    }
-                    onPositionChanged: mouse => {
-                        const stroke = notesCanvas.current
-                        if (!stroke) {
-                            return
-                        }
-                        const x = Math.round(mouse.x)
-                        const y = Math.round(mouse.y)
-                        const lastX = stroke[stroke.length - 2]
-                        const lastY = stroke[stroke.length - 1]
-                        if (x === lastX && y === lastY) {
-                            return
-                        }
-                        stroke.push(x, y)
-                        notesCanvas.pendingSegments.push([lastX, lastY, x, y])
-                        notesCanvas.markDirty(Qt.rect(Math.min(lastX, x) - 4, Math.min(lastY, y) - 4,
-                                                      Math.abs(lastX - x) + 8, Math.abs(lastY - y) + 8))
-                    }
-                    onReleased: {
-                        if (notesCanvas.current) {
-                            root.notes = root.notes.concat([notesCanvas.current])
-                            notesCanvas.current = null
-                            root.save()
-                        }
-                    }
-                    onCanceled: notesCanvas.current = null
-                }
-            }
-
-            // Refresh the drawing area with xochitl's fast pen waveform, like its
-            // notebooks do, instead of the slower one for the rest of the UI
-            Epaper.ScreenModeItem {
-                anchors.fill: notesCanvas
-                mode: Epaper.ScreenModeItem.Pen
-                visible: root.notesOpen
             }
         }
     }
