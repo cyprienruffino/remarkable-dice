@@ -3,6 +3,8 @@
 Life counters and dice for tabletop games (Magic: The Gathering and others) on
 the reMarkable Paper Pro family, as an [AppLoad](https://github.com/asivery/rm-appload) app.
 
+<img src="docs/life.png" width="320" alt="Life counters for 4 players"> <img src="docs/dice.png" width="320" alt="Rolling 5 d20">
+
 - **Life**: 1 to 4 players starting at 20, 25, 30 or 40. Tap the left half of a
   player's panel to lose 1 life, the right half to gain 1, or use −5 and +5.
   Players across the table get upside-down panels, and each panel shows what
