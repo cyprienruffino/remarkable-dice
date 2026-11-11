@@ -16,6 +16,7 @@ Rectangle {
     property int playerCount: 2
     property int startingLife: 20
     property var lives: [20, 20]
+    property var counters: [[0, 0, 0, 0], [0, 0, 0, 0]] // 4 small counters per player
 
     // Dice
     readonly property var dice: [
@@ -38,6 +39,14 @@ Rectangle {
             reset.push(startingLife)
         }
         lives = reset
+        counters = reset.map(() => [0, 0, 0, 0])
+        save()
+    }
+
+    function changeCounter(player, counter, delta) {
+        const updated = counters.map(playerCounters => playerCounters.slice())
+        updated[player][counter] += delta
+        counters = updated
         save()
     }
 
@@ -88,6 +97,7 @@ Rectangle {
             playerCount: root.playerCount,
             startingLife: root.startingLife,
             lives: root.lives,
+            counters: root.counters,
             diceCount: root.diceCount,
             lastRoll: root.lastRoll,
             history: root.history,
@@ -107,6 +117,8 @@ Rectangle {
                 root.playerCount = state.playerCount
                 root.startingLife = state.startingLife
                 root.lives = state.lives
+                root.counters = state.counters && state.counters.length === state.playerCount
+                    ? state.counters : state.lives.map(() => [0, 0, 0, 0])
             }
             if (state.tab) {
                 root.tab = state.tab
@@ -409,7 +421,9 @@ Rectangle {
             border.width: 4
             radius: 16
 
-            readonly property real lifeSize: Math.min(width * 0.32, height * 0.45)
+            readonly property real lifeSize: Math.min(width * 0.32, height * 0.36)
+            // The life total sits above the small counters
+            readonly property real lifeOffset: -height * 0.14
 
             Text {
                 anchors {
@@ -438,6 +452,7 @@ Rectangle {
                     left: parent.left
                     leftMargin: parent.width * 0.06
                     verticalCenter: parent.verticalCenter
+                    verticalCenterOffset: parent.lifeOffset
                 }
                 text: "−"
                 font.pixelSize: parent.lifeSize * 0.5
@@ -448,6 +463,7 @@ Rectangle {
                     right: parent.right
                     rightMargin: parent.width * 0.06
                     verticalCenter: parent.verticalCenter
+                    verticalCenterOffset: parent.lifeOffset
                 }
                 text: "+"
                 font.pixelSize: parent.lifeSize * 0.5
@@ -455,6 +471,7 @@ Rectangle {
             }
             Text {
                 anchors.centerIn: parent
+                anchors.verticalCenterOffset: parent.lifeOffset
                 text: root.lives[panel.player] ?? ""
                 font.pixelSize: parent.lifeSize
                 font.bold: true
@@ -463,7 +480,52 @@ Rectangle {
                 onTapped: (point) => panel.change(point.position.x < parent.width / 2 ? -1 : 1)
             }
 
+            // Small counters, for poison, commander damage and such
             Row {
+                anchors {
+                    bottom: lifeButtons.top
+                    bottomMargin: 16
+                    horizontalCenter: parent.horizontalCenter
+                }
+                readonly property real counterWidth: Math.min(96, (parent.width - 40) / 4 - spacing)
+                spacing: Math.min(28, parent.width * 0.04)
+                Repeater {
+                    model: 4
+                    delegate: Column {
+                        id: counter
+                        required property int index
+                        readonly property int value: (root.counters[panel.player] || [])[index] ?? 0
+                        spacing: 4
+                        Button {
+                            width: parent.parent.counterWidth
+                            height: 48
+                            text: "+"
+                            onClicked: root.changeCounter(panel.player, counter.index, 1)
+                        }
+                        Text {
+                            width: parent.parent.counterWidth
+                            horizontalAlignment: Text.AlignHCenter
+                            text: counter.value < 0 ? "−" + -counter.value : counter.value
+                            font.pixelSize: 40
+                            font.bold: counter.value !== 0
+                            color: counter.value !== 0 ? "black" : "#909090"
+                            // Taps between the buttons shouldn't change the life total
+                            TapHandler {
+                                gesturePolicy: TapHandler.WithinBounds
+                            }
+                        }
+                        Button {
+                            width: parent.parent.counterWidth
+                            height: 48
+                            text: "−"
+                            onClicked: root.changeCounter(panel.player, counter.index, -1)
+                        }
+                    }
+                }
+            }
+
+            Row {
+                id: lifeButtons
                 anchors {
                     bottom: parent.bottom
                     horizontalCenter: parent.horizontalCenter
