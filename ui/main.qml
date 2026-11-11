@@ -302,12 +302,27 @@ Rectangle {
             Repeater {
                 model: root.startingLives
                 delegate: Button {
+                    id: lifeButton
                     width: 70
-                    text: modelData >= 1000 ? modelData / 1000 + "k" : modelData
-                    checked: root.startingLife === modelData
+                    // Switching resets the lives, so ask again during a game
+                    property bool confirming: false
+                    text: confirming ? "Sure?" : modelData >= 1000 ? modelData / 1000 + "k" : modelData
+                    fontSize: confirming ? 22 : 28
+                    checked: root.startingLife === modelData !== confirming
                     onClicked: {
+                        if (root.gameInProgress && !confirming) {
+                            confirming = true
+                            lifeConfirmTimer.restart()
+                            return
+                        }
+                        confirming = false
                         root.startingLife = modelData
                         root.resetLives()
+                    }
+                    Timer {
+                        id: lifeConfirmTimer
+                        interval: 3000
+                        onTriggered: lifeButton.confirming = false
                     }
                 }
             }
