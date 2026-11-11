@@ -1,5 +1,7 @@
 import QtQuick
 import net.asivery.AppLoad 1.0
+// xochitl's e-ink refresh modes (a stand-in in appload-run)
+import xofm.libs.epaper as Epaper
 
 Rectangle {
     id: root
@@ -640,6 +642,14 @@ Rectangle {
                     }
                     onCanceled: notesCanvas.current = null
                 }
+            }
+
+            // Refresh the drawing area with xochitl's fast pen waveform, like its
+            // notebooks do, instead of the slower one for the rest of the UI
+            Epaper.ScreenModeItem {
+                anchors.fill: notesCanvas
+                mode: Epaper.ScreenModeItem.Pen
+                visible: root.notesOpen
             }
         }
     }
