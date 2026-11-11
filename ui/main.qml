@@ -283,12 +283,27 @@ Rectangle {
             Repeater {
                 model: [1, 2, 3, 4]
                 delegate: Button {
+                    id: playersButton
                     width: 60
-                    text: modelData
-                    checked: root.playerCount === modelData
+                    // Switching resets the lives, so ask again during a game
+                    property bool confirming: false
+                    text: confirming ? "Sure?" : modelData
+                    fontSize: confirming ? 18 : 28
+                    checked: root.playerCount === modelData !== confirming
                     onClicked: {
+                        if (root.gameInProgress && !confirming) {
+                            confirming = true
+                            playersConfirmTimer.restart()
+                            return
+                        }
+                        confirming = false
                         root.playerCount = modelData
                         root.resetLives()
+                    }
+                    Timer {
+                        id: playersConfirmTimer
+                        interval: 3000
+                        onTriggered: playersButton.confirming = false
                     }
                 }
             }
