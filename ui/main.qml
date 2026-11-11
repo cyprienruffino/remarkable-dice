@@ -482,9 +482,10 @@ Rectangle {
 
             // Small counters, for poison, commander damage and such
             Row {
+                id: smallCounters
                 anchors {
-                    bottom: lifeButtons.top
-                    bottomMargin: 16
+                    bottom: parent.bottom
+                    bottomMargin: 12
                     horizontalCenter: parent.horizontalCenter
                 }
                 readonly property real counterWidth: Math.min(96, (parent.width - 40) / 4 - spacing)
@@ -527,9 +528,9 @@ Rectangle {
             Row {
                 id: lifeButtons
                 anchors {
-                    bottom: parent.bottom
+                    bottom: smallCounters.top
                     horizontalCenter: parent.horizontalCenter
-                    bottomMargin: 12
+                    bottomMargin: 16
                 }
                 height: Math.min(64, parent.height * 0.18)
                 spacing: 16
