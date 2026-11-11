@@ -15,6 +15,11 @@ Rectangle {
     // Life counters
     property int playerCount: 2
     property int startingLife: 20
+    // 100 for games with life in the thousands, like Yu-Gi-Oh: taps then count by 100
+    property int lifeScale: 1
+    readonly property var startingLives: lifeScale === 1 ? [20, 25, 30, 40] : [4000, 8000, 10000, 16000]
+    readonly property bool gameInProgress: lives.some(life => life !== startingLife)
+        || counters.some(playerCounters => playerCounters.some(value => value !== 0))
     property var lives: [20, 20]
     property var counters: [[0, 0, 0, 0], [0, 0, 0, 0]] // 4 small counters per player
 
@@ -96,6 +101,7 @@ Rectangle {
             tab: root.tab,
             playerCount: root.playerCount,
             startingLife: root.startingLife,
+            lifeScale: root.lifeScale,
             lives: root.lives,
             counters: root.counters,
             diceCount: root.diceCount,
@@ -116,6 +122,7 @@ Rectangle {
             if (state.lives && state.lives.length === state.playerCount) {
                 root.playerCount = state.playerCount
                 root.startingLife = state.startingLife
+                root.lifeScale = state.lifeScale || 1
                 root.lives = state.lives
                 root.counters = state.counters && state.counters.length === state.playerCount
                     ? state.counters : state.lives.map(() => [0, 0, 0, 0])
@@ -155,6 +162,41 @@ Rectangle {
             fontSize: 36
             checked: root.tab === "dice"
             onClicked: { root.tab = "dice"; root.save() }
+        }
+    }
+
+    // Switches between counting life by 1 and by 100
+    Button {
+        id: scaleButton
+        anchors {
+            top: parent.top
+            topMargin: 16
+            right: parent.right
+            rightMargin: 16
+        }
+        width: 130
+        height: 80
+        visible: root.tab === "life"
+        // Switching resets the lives, so ask again during a game
+        property bool confirming: false
+        text: confirming ? "Sure?" : "×100"
+        fontSize: 34
+        checked: root.lifeScale === 100 !== confirming
+        onClicked: {
+            if (root.gameInProgress && !confirming) {
+                confirming = true
+                scaleConfirmTimer.restart()
+                return
+            }
+            confirming = false
+            root.lifeScale = root.lifeScale === 1 ? 100 : 1
+            root.startingLife = root.lifeScale === 1 ? 20 : 8000
+            root.resetLives()
+        }
+        Timer {
+            id: scaleConfirmTimer
+            interval: 3000
+            onTriggered: scaleButton.confirming = false
         }
     }
 
@@ -202,10 +244,10 @@ Rectangle {
                 font.pixelSize: 26
             }
             Repeater {
-                model: [20, 25, 30, 40]
+                model: root.startingLives
                 delegate: Button {
                     width: 70
-                    text: modelData
+                    text: modelData >= 1000 ? modelData / 1000 + "k" : modelData
                     checked: root.startingLife === modelData
                     onClicked: {
                         root.startingLife = modelData
@@ -472,12 +514,17 @@ Rectangle {
             Text {
                 anchors.centerIn: parent
                 anchors.verticalCenterOffset: parent.lifeOffset
+                // Shrinks to fit totals in the thousands between the − and +
+                width: parent.width * 0.64
+                horizontalAlignment: Text.AlignHCenter
+                fontSizeMode: Text.HorizontalFit
+                minimumPixelSize: 24
                 text: root.lives[panel.player] ?? ""
                 font.pixelSize: parent.lifeSize
                 font.bold: true
             }
             TapHandler {
-                onTapped: (point) => panel.change(point.position.x < parent.width / 2 ? -1 : 1)
+                onTapped: (point) => panel.change((point.position.x < parent.width / 2 ? -1 : 1) * root.lifeScale)
             }
 
             // Small counters, for poison, commander damage and such
@@ -535,14 +582,14 @@ Rectangle {
                 height: Math.min(64, parent.height * 0.18)
                 spacing: 16
                 Button {
-                    width: 90
-                    text: "−5"
-                    onClicked: panel.change(-5)
+                    width: root.lifeScale === 1 ? 90 : 120
+                    text: "−" + 5 * root.lifeScale
+                    onClicked: panel.change(-5 * root.lifeScale)
                 }
                 Button {
-                    width: 90
-                    text: "+5"
-                    onClicked: panel.change(5)
+                    width: root.lifeScale === 1 ? 90 : 120
+                    text: "+" + 5 * root.lifeScale
+                    onClicked: panel.change(5 * root.lifeScale)
                 }
             }
         }

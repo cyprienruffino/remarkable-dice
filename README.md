@@ -9,7 +9,9 @@ the reMarkable Paper Pro family, as an [AppLoad](https://github.com/asivery/rm-a
   player's panel to lose 1 life, the right half to gain 1, or use −5 and +5.
   Players across the table get upside-down panels, and each panel shows what
   the last few taps added up to. Each panel also has 4 small counters
-  (poison, commander damage…), starting at 0.
+  (poison, commander damage…), starting at 0. For games with life in the
+  thousands, like Yu-Gi-Oh, ×100 (top right) counts by 100 and 500 instead,
+  starting at 4000, 8000, 10000 or 16000.
 - **Dice**: a coin, d4, d6, d8, d10, d12, d20 and d100, 1 to 5 at a time, with
   the total and the previous rolls. Each roll is numbered, so rolling the same
   result twice still visibly changes the screen.
