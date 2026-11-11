@@ -22,6 +22,7 @@ Rectangle {
         || counters.some(playerCounters => playerCounters.some(value => value !== 0))
     property var lives: [20, 20]
     property var counters: [[0, 0, 0, 0], [0, 0, 0, 0]] // 4 small counters per player
+    property var lifeHistory: [[20], [20]]                // life totals per player, oldest first
 
     // Dice
     readonly property var dice: [
@@ -45,6 +46,7 @@ Rectangle {
         }
         lives = reset
         counters = reset.map(() => [0, 0, 0, 0])
+        lifeHistory = reset.map(life => [life])
         save()
     }
 
@@ -55,11 +57,31 @@ Rectangle {
         save()
     }
 
-    function changeLife(player, delta) {
+    // Changes made in quick succession make a single history entry: with merge,
+    // the last entry is updated instead of adding one. Returns whether the
+    // change left an entry to merge into.
+    function changeLife(player, delta, merge) {
         const updated = lives.slice()
         updated[player] += delta
         lives = updated
+
+        const history = lifeHistory.map(totals => totals.slice())
+        const totals = history[player]
+        if (merge && totals.length > 1) {
+            totals[totals.length - 1] = updated[player]
+        } else {
+            totals.push(updated[player])
+        }
+        // Changes that cancel out leave no trace
+        let hasEntry = true
+        if (totals.length > 1 && totals[totals.length - 1] === totals[totals.length - 2]) {
+            totals.pop()
+            hasEntry = false
+        }
+        history[player] = totals.slice(-200)
+        lifeHistory = history
         save()
+        return hasEntry
     }
 
     function roll(die) {
@@ -104,6 +126,7 @@ Rectangle {
             lifeScale: root.lifeScale,
             lives: root.lives,
             counters: root.counters,
+            lifeHistory: root.lifeHistory,
             diceCount: root.diceCount,
             lastRoll: root.lastRoll,
             history: root.history,
@@ -126,6 +149,8 @@ Rectangle {
                 root.lives = state.lives
                 root.counters = state.counters && state.counters.length === state.playerCount
                     ? state.counters : state.lives.map(() => [0, 0, 0, 0])
+                root.lifeHistory = state.lifeHistory && state.lifeHistory.length === state.playerCount
+                    ? state.lifeHistory : state.lives.map(life => [life])
             }
             if (state.tab) {
                 root.tab = state.tab
@@ -444,9 +469,11 @@ Rectangle {
         property int player
         property bool upsideDown: false
         property int recentChange: 0   // shown for a moment, to see what a series of taps added up to
+        property bool recentEntry: false // whether the current series of taps has a history entry
 
         function change(delta) {
-            root.changeLife(player, delta)
+            const merge = recentTimer.running && recentEntry
+            recentEntry = root.changeLife(player, delta, merge)
             recentChange += delta
             recentTimer.restart()
         }
@@ -464,6 +491,7 @@ Rectangle {
             radius: 16
 
             readonly property real lifeSize: Math.min(width * 0.32, height * 0.36)
+            readonly property real historyWidth: root.lifeScale === 1 ? 46 : 74
             // The life total sits above the small counters
             readonly property real lifeOffset: -height * 0.14
 
@@ -492,7 +520,7 @@ Rectangle {
             Text {
                 anchors {
                     left: parent.left
-                    leftMargin: parent.width * 0.06
+                    leftMargin: parent.historyWidth + 20
                     verticalCenter: parent.verticalCenter
                     verticalCenterOffset: parent.lifeOffset
                 }
@@ -514,8 +542,9 @@ Rectangle {
             Text {
                 anchors.centerIn: parent
                 anchors.verticalCenterOffset: parent.lifeOffset
+                anchors.horizontalCenterOffset: parent.historyWidth / 2
                 // Shrinks to fit totals in the thousands between the − and +
-                width: parent.width * 0.64
+                width: parent.width * 0.64 - parent.historyWidth
                 horizontalAlignment: Text.AlignHCenter
                 fontSizeMode: Text.HorizontalFit
                 minimumPixelSize: 24
@@ -525,6 +554,33 @@ Rectangle {
             }
             TapHandler {
                 onTapped: (point) => panel.change((point.position.x < parent.width / 2 ? -1 : 1) * root.lifeScale)
+            }
+
+            // Life history, newest at the bottom; the oldest scroll off the top
+            Item {
+                anchors {
+                    top: parent.top
+                    topMargin: 52
+                    bottom: lifeButtons.top
+                    bottomMargin: 12
+                    left: parent.left
+                    leftMargin: 12
+                }
+                width: parent.historyWidth
+                clip: true
+                Column {
+                    anchors.bottom: parent.bottom
+                    width: parent.width
+                    Repeater {
+                        model: root.lifeHistory[panel.player] || []
+                        delegate: Text {
+                            width: parent.width
+                            text: modelData
+                            font.pixelSize: 20
+                            color: "#505050"
+                        }
+                    }
+                }
             }
 
             // Small counters, for poison, commander damage and such
