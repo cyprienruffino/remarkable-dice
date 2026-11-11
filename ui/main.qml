@@ -34,6 +34,10 @@ Rectangle {
     property var history: []        // descriptions of previous rolls, newest first
     property int rollNumber: 0      // shown with each roll, so rolling the same result again visibly changes the screen
 
+    // Free-hand notes
+    property bool notesOpen: false
+    property var notes: []          // strokes, each a flat list of x, y coordinates
+
     // Called by AppLoad when the app is closed; stops the backend
     function unloading() {
         backend.terminate()
@@ -130,7 +134,8 @@ Rectangle {
             diceCount: root.diceCount,
             lastRoll: root.lastRoll,
             history: root.history,
-            rollNumber: root.rollNumber
+            rollNumber: root.rollNumber,
+            notes: root.notes
         }))
     }
 
@@ -161,6 +166,7 @@ Rectangle {
             root.lastRoll = state.lastRoll || null
             root.history = state.history || []
             root.rollNumber = state.rollNumber || 0
+            root.notes = state.notes || []
         }
     }
 
@@ -187,6 +193,23 @@ Rectangle {
             fontSize: 36
             checked: root.tab === "dice"
             onClicked: { root.tab = "dice"; root.save() }
+        }
+    }
+
+    Button {
+        anchors {
+            top: parent.top
+            topMargin: 16
+            left: parent.left
+            leftMargin: 16
+        }
+        width: 130
+        height: 80
+        text: "Notes"
+        fontSize: 34
+        onClicked: {
+            root.notesOpen = true
+            notesCanvas.redrawAll()
         }
     }
 
@@ -460,6 +483,163 @@ Rectangle {
                 font.pixelSize: 26
                 elide: Text.ElideRight
                 width: diceView.width
+            }
+        }
+    }
+
+    // A blank page to write on with the pen, over everything else
+    Rectangle {
+        id: notesPage
+        anchors.fill: parent
+        z: 100
+        visible: root.notesOpen
+        color: "white"
+
+        // Nothing below reacts while the page is open
+        MouseArea {
+            anchors.fill: parent
+        }
+
+        Button {
+            anchors {
+                top: parent.top
+                topMargin: 16
+                left: parent.left
+                leftMargin: 16
+            }
+            width: 130
+            height: 80
+            text: "Back"
+            fontSize: 34
+            onClicked: root.notesOpen = false
+        }
+        Button {
+            id: clearNotesButton
+            anchors {
+                top: parent.top
+                topMargin: 16
+                right: parent.right
+                rightMargin: 16
+            }
+            width: 130
+            height: 80
+            property bool confirming: false
+            text: confirming ? "Sure?" : "Clear"
+            fontSize: 34
+            checked: confirming
+            onClicked: {
+                if (!confirming) {
+                    confirming = true
+                    clearNotesTimer.restart()
+                    return
+                }
+                confirming = false
+                root.notes = []
+                root.save()
+                notesCanvas.redrawAll()
+            }
+            Timer {
+                id: clearNotesTimer
+                interval: 3000
+                onTriggered: clearNotesButton.confirming = false
+            }
+        }
+
+        Rectangle {
+            anchors {
+                top: parent.top
+                topMargin: 112
+                left: parent.left
+                right: parent.right
+                bottom: parent.bottom
+                margins: 16
+            }
+            border.width: 3
+            radius: 12
+
+            Canvas {
+                id: notesCanvas
+                anchors.fill: parent
+                anchors.margins: 4
+
+                property var current: null       // the stroke being drawn
+                property var pendingSegments: []
+                property bool pendingRedraw: false
+
+                function redrawAll() {
+                    pendingRedraw = true
+                    pendingSegments = []
+                    requestPaint()
+                }
+
+                onPaint: {
+                    const ctx = getContext("2d")
+                    ctx.strokeStyle = "black"
+                    ctx.lineWidth = 4
+                    ctx.lineCap = "round"
+                    ctx.lineJoin = "round"
+                    if (pendingRedraw) {
+                        ctx.clearRect(0, 0, width, height)
+                        for (const stroke of root.notes) {
+                            ctx.beginPath()
+                            ctx.moveTo(stroke[0], stroke[1])
+                            for (let i = 2; i < stroke.length; i += 2) {
+                                ctx.lineTo(stroke[i], stroke[i + 1])
+                            }
+                            if (stroke.length === 2) {
+                                ctx.lineTo(stroke[0] + 0.5, stroke[1] + 0.5)
+                            }
+                            ctx.stroke()
+                        }
+                        pendingRedraw = false
+                    }
+                    for (const segment of pendingSegments) {
+                        ctx.beginPath()
+                        ctx.moveTo(segment[0], segment[1])
+                        ctx.lineTo(segment[2], segment[3])
+                        ctx.stroke()
+                    }
+                    pendingSegments = []
+                }
+
+                // Only the pen writes: it arrives as plain mouse events, while
+                // touches are synthesized ones, so a resting palm leaves no marks
+                MouseArea {
+                    anchors.fill: parent
+                    preventStealing: true
+                    onPressed: mouse => {
+                        if (mouse.source !== Qt.MouseEventNotSynthesized) {
+                            mouse.accepted = false
+                            return
+                        }
+                        notesCanvas.current = [Math.round(mouse.x), Math.round(mouse.y)]
+                    }
+                    onPositionChanged: mouse => {
+                        const stroke = notesCanvas.current
+                        if (!stroke) {
+                            return
+                        }
+                        const x = Math.round(mouse.x)
+                        const y = Math.round(mouse.y)
+                        const lastX = stroke[stroke.length - 2]
+                        const lastY = stroke[stroke.length - 1]
+                        if (x === lastX && y === lastY) {
+                            return
+                        }
+                        stroke.push(x, y)
+                        notesCanvas.pendingSegments.push([lastX, lastY, x, y])
+                        notesCanvas.markDirty(Qt.rect(Math.min(lastX, x) - 4, Math.min(lastY, y) - 4,
+                                                      Math.abs(lastX - x) + 8, Math.abs(lastY - y) + 8))
+                    }
+                    onReleased: {
+                        if (notesCanvas.current) {
+                            root.notes = root.notes.concat([notesCanvas.current])
+                            notesCanvas.current = null
+                            root.save()
+                        }
+                    }
+                    onCanceled: notesCanvas.current = null
+                }
             }
         }
     }

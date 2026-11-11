@@ -18,7 +18,9 @@ the reMarkable Paper Pro family, as an [AppLoad](https://github.com/asivery/rm-a
   the total and the previous rolls. Each roll is numbered, so rolling the same
   result twice still visibly changes the screen.
 
-Life totals and rolls are saved in `~/.local/share/dice/state.json`, so a game
+- **Notes** (top left): a blank page to write on with the pen, during a game.
+
+Life totals, rolls and notes are saved in `~/.local/share/dice/state.json`, so a game
 survives closing the app. The backend (`backend/`) only does that saving; the
 frontend is `ui/main.qml`.
 
