@@ -24,8 +24,8 @@ Item {
     // Strokes, each a flat list of x, y coordinates in this item
     property var strokes: []
     property real lineWidth: 3
-    // How close the eraser must pass to a stroke to remove it
-    property real eraserRadius: 14
+    // How close the eraser must pass to ink to erase it, in pixels
+    property real eraserRadius: 20
     // Whether xochitl's native ink is in use, rather than the fallback
     readonly property bool isNative: nativeSurface !== null
 
@@ -179,6 +179,8 @@ Item {
                 "import xofm.libs.devicesceneview; ScenePenInputHandler {}", ink)
             nativeHandler.sampleRate = penInputOwner.penInput.sampleRate
             nativeHandler.lineThickness = 2
+            // xochitl's default eraser trace (2.4) roughly matches a 14 pixel radius
+            nativeHandler.eraserThickness = 2.4 * eraserRadius / 14
             const transforms = Qt.createQmlObject("import RmSdk; import QtQml; QtObject { function identity() { return Transforms.identity() } }", ink)
             nativeSurface = Qt.createQmlObject("import com.remarkable; PenInputSurface {}", ink)
             nativeSurface.parent = penInputOwner
